@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F 
-
+import time
 import random
 import numpy as np
 from statistics import mean
@@ -19,7 +19,7 @@ replay_start_size      = 50000
 final_exploration_step = 1000000
 update_interval        = 10000 # target net
 update_frequency       = 4  # the number of actions selected by the agent between successive SGD updates
-save_interval          = 1000
+save_interval          = 10000
 model_path             = './Models/Breakout_DRQN.model'
 history_path           = './Train_Historys/Breakout_DRQN'
 
@@ -120,9 +120,10 @@ def main():
 
     state = env.reset()
     h, c = init_hidden()
-
+    start = time.time()
     print("Train start")
     while step < Train_max_step:
+        env.render()
         epsilon = max(0.1, 1.0 - (0.9/final_exploration_step) * step)
 
         action_value, (next_h, next_c) = behaviourNet.forward(torch.FloatTensor([state]).to(device), (h, c))
@@ -130,7 +131,7 @@ def main():
         # epsilon greedy
         coin = random.random()
         if coin < epsilon:
-            action = random.randrange(4)
+            action = random.randrange(18)
         else:
             action = action_value.argmax().item()
         
@@ -159,12 +160,13 @@ def main():
         if step % update_interval==0 and buffer.size() > replay_start_size:
             targetNet.load_state_dict(behaviourNet.state_dict())
 
-        if step % save_interval == 0:
+        if step > 0 and step % save_interval == 0:
             train_history.append(mean(score_history))
             torch.save(behaviourNet.state_dict(), model_path)
             np.save(history_path, np.array(train_history))
-            print("step : {}, Average score of last 100 episode : {:.1f}".format(step, mean(score_history)))
-    
+            end = time.time()
+            print(f"Step No: {step}, Hundred episode average: {mean(score_history)}, epsilon: {epsilon}, time = {end-start} ")
+            start = end
     torch.save(behaviourNet.state_dict(), model_path)
     np.save(history_path, np.array(train_history))
     print("Train end, avg_score of last 100 episode : {}".format(mean(score_history)))
