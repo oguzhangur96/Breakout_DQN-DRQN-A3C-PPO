@@ -59,7 +59,7 @@ class QNet_LSTM(nn.Module):
 
         self.lstm = nn.LSTMCell(self.ConvOutSize * self.ConvOutSize * 64, 512)
 
-        self.Q = nn.Linear(512, 4)
+        self.Q = nn.Linear(512, 18)
 
         self.initialize_weights()
     
@@ -90,6 +90,64 @@ class QNet_LSTM(nn.Module):
         out_tensor = self.conv3(self.conv2(self.conv1(test_tensor)))
         conv_out_size = out_tensor.size()[-1]
         return conv_out_size
+
+
+class QNet_DARQN(nn.Module):
+    def __init__(self):
+        super(QNet_DARQN, self).__init__()
+
+        # layers
+        self.conv1 = nn.Conv2d(1, 32, kernel_size=8, stride=4)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
+        self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
+
+        self.ConvOutSize = self.get_conv_out_size()
+
+        self.attention_linear_one = nn.Linear(self.ConvOutSize * self.ConvOutSize * 64,512)
+        self.attention_W = nn.Linear(512, 512)
+        self.attention_linear_two = nn.Linear(512,512)
+
+        self.lstm = nn.LSTMCell(512, 512)
+        self.Q = nn.Linear(512, 18)
+
+        self.initialize_weights()
+
+    def forward(self, x, hidden):
+        # CNN
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        x = F.relu(self.conv3(x))
+        # print(x.size())
+        x = x.view(-1, self.ConvOutSize * self.ConvOutSize * 64)
+
+        # attention
+        x = self.attention_linear_one(x)
+        temp = self.attention_W(hidden[0])
+        z = x.add(temp)
+        z = self.attention_linear_two(z)
+        z = F.softmax(z)
+        z = x*z
+        #LSTM
+        h, c = self.lstm(z, hidden)
+
+        q = self.Q(h)
+        return q, (h, c)
+
+    def initialize_weights(self):
+        for module in self.modules():
+            if isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear):
+                nn.init.xavier_uniform_(module.weight)
+                nn.init.constant_(module.bias, 0)
+            elif isinstance(module, nn.LSTMCell):
+                nn.init.constant_(module.bias_ih, 0)
+                nn.init.constant_(module.bias_hh, 0)
+
+    def get_conv_out_size(self):
+        test_tensor = torch.FloatTensor(1, 1, 84, 84)
+        out_tensor = self.conv3(self.conv2(self.conv1(test_tensor)))
+        conv_out_size = out_tensor.size()[-1]
+        return conv_out_size
+
 
 class ActorCriticNet(nn.Module):
     def __init__(self):
