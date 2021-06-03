@@ -67,7 +67,7 @@ class CustomBreakout_stack(Wrapper):
         return np.stack(self.history)
 
 def CreateBreakout(stack=True):
-    env = gym.make('Breakout-v0')
+    env = gym.make('Seaquest-v0')
     if stack:
         env = CustomBreakout_stack(env)
     else:
@@ -75,7 +75,7 @@ def CreateBreakout(stack=True):
     return env
 
 class MultipleBreakout:
-    def __init__(self, N, stack=True):
+    def __init__(self, N, stack=False):
         self.envs = [CreateBreakout(stack) for _ in range(N)]
     
     def reset(self):
