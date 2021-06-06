@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F 
 import torch.optim as optim
 from torch.distributions import Categorical
+from torch.autograd import Variable
 
 import numpy as np
 
@@ -103,9 +104,9 @@ class QNet_DARQN(nn.Module):
 
         self.ConvOutSize = self.get_conv_out_size()
         self.attention_h = nn.Linear(512,64)
-        self.attention_xW = torch.randn((64),requires_grad=True).to("cuda")
-        self.attention_xb = torch.randn((64), requires_grad=True).to("cuda")
-        # self.attention_linear_x = nn.Linear(64,64)
+        # self.attention_xW = Variable(torch.randn((64),requires_grad=True)).to("cuda")
+        # self.attention_xb = Variable(torch.randn((64), requires_grad=True)).to("cuda")
+        self.attention_linear_x = nn.Linear(64,64)
         self.attention_linear_z = nn.Linear(64,64)
 
 
@@ -145,20 +146,20 @@ class QNet_DARQN(nn.Module):
         #         out = z*chunk
         #     elif i > 0:
         #         out = torch.cat((out,z*chunk))
-        h_att = self.attention_h(hidden[0]).reshape(64) #1,64
+        h_att = self.attention_h(hidden[0]).reshape(64) #64
         # print(f"h_att size = {h_att.size()}")
         x = x.reshape((64,49)) # 64 ,49
-        x = x.T
+        x = x.T # 49 ,64
         # print(f"x_1 size = {x.size()}") # 49, 64
-        x = x*self.attention_xW + self.attention_xb
+        x = self.attention_linear_x(x) #(49,64) * (64) + (64) = (49,64)
         # print(f"x_2 size = {x.size()}")
-        z = F.tanh(x+h_att)
-        z = self.attention_linear_z(z)
-        z = F.softmax(z)
-        out = z*x
+        z = F.tanh(x+h_att) # (49,64) + (49,64) = (49,64)
+        z = self.attention_linear_z(z) # (49,64)
+        z = F.softmax(z) # (49,64)
+        out = z*x # (49,64)
         # print(f"out size = {out.size()}")
-        lstm_input = torch.sum(out,0)
-        lstm_input = lstm_input.reshape((1,64))
+        lstm_input = torch.sum(out,0) # 64
+        lstm_input = lstm_input.reshape((1,64)) # 1 ,64
         #LSTM
         h, c = self.lstm(lstm_input, hidden)
 
