@@ -103,11 +103,13 @@ class QNet_DARQN(nn.Module):
 
         self.ConvOutSize = self.get_conv_out_size()
 
-        self.attention_linear_one = nn.Linear(self.ConvOutSize * self.ConvOutSize * 64,512)
-        self.attention_W = nn.Linear(512, 512)
-        self.attention_linear_two = nn.Linear(512,512)
+        self.attention_hW = torch.randn((512,64),requires_grad=True).to("cuda")
+        self.attention_hb = torch.randn((1, 64), requires_grad=True).to("cuda")
+        self.attention_linear_x = nn.Linear(64,64)
+        self.attention_linear_z = nn.Linear(64,64)
 
-        self.lstm = nn.LSTMCell(512, 512)
+
+        self.lstm = nn.LSTMCell(64, 512)
         self.Q = nn.Linear(512, 18)
 
         self.initialize_weights()
@@ -118,17 +120,34 @@ class QNet_DARQN(nn.Module):
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))
         # print(x.size())
-        x = x.view(-1, self.ConvOutSize * self.ConvOutSize * 64)
+        # x = x.view(-1, self.ConvOutSize * self.ConvOutSize * 64)
+
 
         # attention
-        x = self.attention_linear_one(x)
-        temp = self.attention_W(hidden[0])
-        z = x.add(temp)
-        z = self.attention_linear_two(z)
-        z = F.softmax(z)
-        z = x*z
+        # x = self.attention_linear_one(x)
+        # temp = self.attention_W(hidden[0])
+        # z = x.add(temp)
+        # z = self.attention_linear_two(z)
+        # z = F.softmax(z)
+        # z = x*z
+        x = x.view(-1, 64, self.ConvOutSize * self.ConvOutSize)
+        k = torch.chunk(x,49,2)
+        for i,chunk in enumerate(k):
+            chunk = chunk.reshape((1,64))
+            h_att = torch.matmul(hidden[0],self.attention_hW) + self.attention_hb
+            x_att = self.attention_linear_x(chunk)
+            z = F.relu(h_att + x_att)
+            z = self.attention_linear_z(z)
+            z = F.softmax(z)
+            if i == 0:
+                out = z*chunk
+            elif i > 0:
+                out = torch.cat((out,z*chunk))
+        # print(out.size())
+        lstm_input = torch.sum(out,0)
+        lstm_input = lstm_input.reshape((1,64))
         #LSTM
-        h, c = self.lstm(z, hidden)
+        h, c = self.lstm(lstm_input, hidden)
 
         q = self.Q(h)
         return q, (h, c)
