@@ -102,9 +102,9 @@ class QNet_DARQN(nn.Module):
         self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
 
         self.ConvOutSize = self.get_conv_out_size()
-
-        self.attention_hW = torch.randn((512,64),requires_grad=True).to("cuda")
-        self.attention_hb = torch.randn((1, 64), requires_grad=True).to("cuda")
+        self.attention_h = nn.Linear(512,64)
+        # self.attention_hW = torch.randn((512,64),requires_grad=True).to("cuda")
+        # self.attention_hb = torch.randn((1, 64), requires_grad=True).to("cuda")
         self.attention_linear_x = nn.Linear(64,64)
         self.attention_linear_z = nn.Linear(64,64)
 
@@ -115,6 +115,8 @@ class QNet_DARQN(nn.Module):
         self.initialize_weights()
 
     def forward(self, x, hidden):
+
+        out = torch.rand((1,49,64),requires_grad=True)
         # CNN
         x = F.relu(self.conv1(x))
         x = F.relu(self.conv2(x))
@@ -131,12 +133,13 @@ class QNet_DARQN(nn.Module):
         # z = F.softmax(z)
         # z = x*z
         x = x.view(-1, 64, self.ConvOutSize * self.ConvOutSize)
-        k = torch.chunk(x,49,2)
+        k = torch.chunk(x,49,2) # (1,64) * 49
         for i,chunk in enumerate(k):
             chunk = chunk.reshape((1,64))
-            h_att = torch.matmul(hidden[0],self.attention_hW) + self.attention_hb
+            # h_att = torch.matmul(hidden[0],self.attention_hW) + self.attention_hb
+            h_att = self.attention_h(hidden[0]) #64
             x_att = self.attention_linear_x(chunk)
-            z = F.relu(h_att + x_att)
+            z = F.tanh(h_att + x_att)
             z = self.attention_linear_z(z)
             z = F.softmax(z)
             if i == 0:
