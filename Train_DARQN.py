@@ -11,7 +11,7 @@ from Network import QNet_DARQN
 
 # settings
 Train_max_step = 4000000
-learning_rate = 1e-4
+learning_rate = 2e-4
 gamma = 0.99
 buffer_capacity = 500000
 batch_size = 32
@@ -65,7 +65,7 @@ class ReplayBuffer:
 
 
 def init_hidden():
-    h, c = torch.zeros([1, 512], dtype=torch.float).to(device), torch.zeros([1, 512], dtype=torch.float).to(device)
+    h, c = torch.zeros([1, 64], dtype=torch.float).to(device), torch.zeros([1, 64], dtype=torch.float).to(device)
     return h, c
 
 
@@ -79,6 +79,7 @@ def train(optimizer, behaviourNet, targetNet, s_batch, a_batch, r_batch, done_ba
     ht, ct = init_hidden()
     Q_batch = []
     target_Q_batch = []
+    # start = time.time()
     for state, done in zip(s_batch, done_batch):
         Q, (hb, cb) = behaviourNet.forward(state.unsqueeze(0), (hb, cb))
         target_Q, (ht, ct) = targetNet.forward(state.unsqueeze(0), (ht, ct))
@@ -99,9 +100,11 @@ def train(optimizer, behaviourNet, targetNet, s_batch, a_batch, r_batch, done_ba
     TD_target = r_batch + gamma * max_next_Q * done_batch[:-1]
 
     loss = F.smooth_l1_loss(Q_a, TD_target.detach())
-
+    # print(start - time.time())
+    start = time.time()
     optimizer.zero_grad()
     loss.backward()
+    # print(start - time.time())
     optimizer.step()
 
 
